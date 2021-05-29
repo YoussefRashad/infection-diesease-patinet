@@ -6,7 +6,7 @@ require('./DB/connection')
 
 app.use(express.json())
 
-const URL = process.env.FE_URL || "https://infection-disease.netlify.app"
+const URL = "https://infection-disease.netlify.app"
 // Access Api
 // https://msp-tech-club-egypt.netlify.app
 // origin:['http://localhost:3000','http://127.0.0.1:3000']
