@@ -5,19 +5,23 @@ const app = express()
 require('./DB/connection')
 
 app.use(express.json())
+// const URL = "https://infection-disease.netlify.app"
 
-const URL = "https://infection-disease.netlify.app"
+const URL = process.env.FE_URL || "https://infection-disease.netlify.app"
 // Access Api
 // https://msp-tech-club-egypt.netlify.app
 // origin:['http://localhost:3000','http://127.0.0.1:3000']
-app.use(cors());
-// app.use((req, res, next) => {
-//     res.header('Access-Control-Allow-Origin', URL);
-//     res.header('Access-Control-Allow-Headers', true);
-//     res.header('Access-Control-Allow-Credentials', true);
-//     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-//     next();
-// })
+app.use(cors({
+    origin: [URL, URL],
+    credentials: true
+}));
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', URL);
+    res.header('Access-Control-Allow-Headers', true);
+    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    next();
+})
 
 
 // Routers
