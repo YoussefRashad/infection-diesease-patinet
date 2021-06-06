@@ -3,6 +3,8 @@ const router = require('express').Router()
 const Patient = require('../models/Patient.model')
 const authPatient = require('../middleware/authPatient')
 const authAdmin = require('../middleware/authAdmin')
+const { sendPasswordVerificationCode } = require('../emails/mailer')
+const { generateToken } = require('../Utils/Helpers')
 
 
 // to get all patients
@@ -196,6 +198,57 @@ router.post('/logout-all', authPatient, async (req, res) => {
   }
 })
 
+
+
+router.post('/password/forget', async (req, res) => {
+  const patient = await Patient.findOne({ email: req.body.email })
+  if (!patient){
+    return res.status(404).send("patient is not found")
+  }
+  if (patient.passwordResetToken) {
+    sendPasswordVerificationCode(patient.email, patient.name, patient.passwordResetToken, 'patient')
+  } else {
+    const code = await generateToken()
+    patient.passwordResetToken = code
+    sendPasswordVerificationCode(patient.email, patient.name, code)
+    await patient.save()
+  }
+  res.status(200).send()
+})
+
+router.get('/password/reset/:code', async (req, res) => {
+  const code = req.params.code
+  if (!code) {
+    res.status(400).send("code error")
+  }
+  const patient = await Patient.findOne({ passwordResetToken: code })
+  if (!patient) {
+    res.status(400).send("not find patient")
+  }
+  patient.changePassword = true
+  patient.passwordResetToken = undefined
+  await patient.save()
+  res.status(200).send()
+})
+
+// should send email, pass, confirm pass
+router.post('/resetPassword', async (req, res) => {
+  const { email, password, confirmPassword } = req.body
+  const patient = await Patient.findOne({ email })
+  if (!patient) {
+    res.status(400).send("not find a patient")
+  }
+  if (!patient.changePassword) {
+    res.status(400).send("forget req first")
+  }
+  if (password !== confirmPassword) {
+    res.status(400).send("not matched")
+  }
+  patient.password = password
+  patient.changePassword = false
+  await patient.save()
+  res.status(200).send()
+})
 
 
 module.exports = router

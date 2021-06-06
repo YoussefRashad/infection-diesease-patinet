@@ -3,6 +3,9 @@ const router = require('express').Router()
 const Doctor = require('../models/Doctor.model')
 const authDoctor = require('../middleware/authDoctor')
 const authAdmin = require('../middleware/authAdmin')
+const { sendPasswordVerificationCode, acceptDoctorEmail, rejectDoctorEmail } = require('../emails/mailer')
+const { generateToken } = require('../Utils/Helpers')
+
 
 // to get all doctors 
 router.get('/', /* authAdmin, */ async (req, res) => {
@@ -76,11 +79,28 @@ router.get('/get-pending', authAdmin, async (req, res) => {
   }
 })
 
-router.post('/activate-status/:id',/* authAdmin, */ async (req, res) => {
+router.get('/activate-status/:id', authAdmin, async (req, res) => {
   const id = req.params.id
   try {
-    const doctor = await Doctor.update({_id: id}, { status: true })
+    const doctor = await Doctor.update({ _id: id }, { status: true })
+    acceptDoctorEmail(doctor.name)
     res.status(200).send(doctor)
+  } catch (error) {
+    res.status(500).send({ error: error.message })
+  }
+})
+
+// to reject doctor
+router.delete('/reject/:id', authAdmin, async (req, res) => {
+  const id = req.params.id
+  try {
+    const doctor = await Doctor.findById(id)
+    if (!doctor) {
+      res.status(404).send("not found doctor")
+    }
+    rejectDoctorEmail(doctor.email, doctor.name)
+    await doctor.remove()
+    res.status(200).send()
   } catch (error) {
     res.status(500).send({ error: error.message })
   }
@@ -188,6 +208,59 @@ router.post('/logout-all', authDoctor, async (req, res) => {
   } catch (error) {
     res.status(500).send({ error: error.message })
   }
+})
+
+
+router.post('/password/forget', async (req, res) => {
+  const email = req.body
+  const doctor = await Doctor.findOne({ email })
+  if (!doctor) {
+    res.status(400).send("not find doctor")
+  }
+  if (doctor.passwordResetToken) {
+    sendPasswordVerificationCode(doctor.email, doctor.name, doctor.passwordResetToken, 'doctor')
+  } else {
+    const code = await generateToken()
+    doctor.passwordResetToken = code
+    sendPasswordVerificationCode(doctor.email, doctor.name, code)
+    await doctor.save()
+  }
+  res.status(200).send()
+})
+
+router.get('/password/reset/:code', async (req, res) => {
+  const code = req.params.code
+  if (!code) {
+    res.status(400).send("code error")
+  }
+  const doctor = await Doctor.findOne({ passwordResetToken: code })
+  if (!doctor) {
+    res.status(400).send("not find doctor")
+  }
+  doctor.changePassword = true
+  doctor.passwordResetToken = undefined
+  await doctor.save()
+  res.status(200).send()
+})
+
+// should send email, pass, confirm pass
+router.post('/resetPassword', async (req, res) => {
+  const { email, password, confirmPassword } = req.body
+  console.log(email, password, confirmPassword);
+  const doctor = await Doctor.findOne({ email })
+  if (!doctor) {
+    res.status(400).send("not find a doctor")
+  }
+  if (!doctor.changePassword) {
+    res.status(400).send("forget req first")
+  }
+  if (password !== confirmPassword) {
+    res.status(400).send("not matched")
+  }
+  doctor.password = password
+  doctor.changePassword = false
+  await doctor.save()
+  res.status(200).send()
 })
 
 

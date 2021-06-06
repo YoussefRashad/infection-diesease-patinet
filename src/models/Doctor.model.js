@@ -85,6 +85,14 @@ const doctorSchema = new mongoose.Schema({
     default: false
     // false is pending
     // true is a doctor
+  },
+  passwordResetToken: {
+    type: String,
+    default: undefined
+  },
+  changePassword: { // when reset pass it will be true, otherwise will be false
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

@@ -2,6 +2,9 @@
 const router = require('express').Router()
 const Admin = require('../models/Admin.model')
 const authAdmin = require('../middleware/authAdmin')
+const { sendPasswordVerificationCode } = require('../emails/mailer')
+const { generateToken } = require('../Utils/Helpers')
+
 
 // to get all admins 
 router.get('/',/*  authAdmin, */ async (req, res) => {
@@ -159,6 +162,57 @@ router.post('/logout-all', authAdmin, async (req, res) => {
   }
 })
 
+router.post('/password/forget', async (req, res) => {
+  const email = req.body
+  const admin = await Admin.findOne({ email })
+  if (!admin) {
+    res.status(400).send("not find doctor")
+  }
+  if (admin.passwordResetToken) {
+    sendPasswordVerificationCode(admin.email, admin.name, admin.passwordResetToken, 'admin')
+  } else {
+    const code = await generateToken()
+    admin.passwordResetToken = code
+    sendPasswordVerificationCode(admin.email, admin.name, code)
+    await admin.save()
+  }
+  res.status(200).send()
+})
+
+router.get('/password/reset/:code', async (req, res) => {
+  const code = req.params.code
+  if (!code) {
+    res.status(400).send("code error")
+  }
+  const admin = await Admin.findOne({ passwordResetToken: code })
+  if (!admin) {
+    res.status(400).send("not find admin")
+  }
+  admin.changePassword = true
+  admin.passwordResetToken = undefined
+  await admin.save()
+  res.status(200).send()
+})
+
+// should send email, pass, confirm pass
+router.post('/resetPassword', async (req, res) => {
+  const { email, password, confirmPassword } = req.body
+  console.log(email, password, confirmPassword);
+  const admin = await Admin.findOne({ email })
+  if (!admin) {
+    res.status(400).send("not find a admin")
+  }
+  if (!admin.changePassword) {
+    res.status(400).send("forget req first")
+  }
+  if (password !== confirmPassword) {
+    res.status(400).send("not matched")
+  }
+  admin.password = password
+  admin.changePassword = false
+  await admin.save()
+  res.status(200).send()
+})
 
 
 module.exports = router
